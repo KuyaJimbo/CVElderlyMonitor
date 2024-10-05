@@ -32,38 +32,13 @@ This project is a Python application that uses OpenCV and MediaPipe to detect hu
 
 1. Run the script:
    ```
-   python skeleton_overlay.py
+   python app.py
    ```
 
 2. The application will open your default camera feed and start detecting poses.
 
 3. Press 'q' to quit the application.
 
-## Google Colab Usage
-
-To run this application in Google Colab:
-
-1. Upload the `skeleton_overlay.py` file to your Colab notebook.
-
-2. Install the required libraries:
-   ```
-   !pip install mediapipe opencv-python-headless
-   ```
-
-3. Modify the script to use `cv2_imshow` instead of `cv2.imshow`:
-   ```python
-   from google.colab.patches import cv2_imshow
-   # Replace cv2.imshow('Skeleton Overlay', frame) with:
-   cv2_imshow(frame)
-   ```
-
-4. Remove the `cv2.waitKey(1)` line as it's not needed in Colab.
-
-5. To capture video in Colab, add this at the beginning of your code:
-   ```python
-   from google.colab import output
-   output.enable_custom_widget_manager()
-   ```
 
 ## Customization
 
@@ -73,10 +48,6 @@ To run this application in Google Colab:
 ## Contributing
 
 Contributions to improve the application are welcome. Please feel free to submit a Pull Request.
-
-## License
-
-This project is open source and available under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
