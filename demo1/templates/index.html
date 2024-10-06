@@ -7,61 +7,185 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        #video-container {
+            flex: 1;
+            display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
         }
         #video {
             border: 2px solid #333;
             border-radius: 8px;
-            margin-bottom: 20px;
         }
-        #status {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
+        #table-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        table {
+            border-collapse: collapse;
+            width: 80%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #333;
+            color: white;
+        }
+        .lying-down {
+            background-color: red !important;
+            color: white !important;
+        }
+        button {
+            padding: 5px 10px;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #555;
         }
     </style>
 </head>
 <body>
-    <video id="video" width="640" height="480" autoplay></video>
-    <div id="status">Status: Not detected</div>
+    <div id="video-container">
+        <img id="video" width="640" height="480" />
+    </div>
+
+    <div id="table-container">
+        <table id="status-table">
+            <thead>
+                <tr>
+                    <th>Person Index</th>
+                    <th>Status</th>
+                    <th>Reset</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Rows will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
 
     <script>
-        const video = document.getElementById('video');
-        const status = document.getElementById('status');
         const socket = io();
+        const video = document.getElementById('video');
+        const tableBody = document.querySelector('#table-body');
+        let statusTracker = {};  // Track status (lying down or not) and time for each person
+
+        // Function to create a new row in the table for each person
+        function createTableRow(personIndex) {
+            const row = document.createElement('tr');
+            row.id = `person-${personIndex}`;
+
+            const indexCell = document.createElement('td');
+            indexCell.textContent = personIndex;
+
+            const statusCell = document.createElement('td');
+            statusCell.textContent = 'Not lying down';
+            statusCell.id = `status-${personIndex}`;
+
+            const resetCell = document.createElement('td');
+            const resetButton = document.createElement('button');
+            resetButton.textContent = 'Reset';
+            resetButton.onclick = () => resetRow(personIndex);
+            resetCell.appendChild(resetButton);
+
+            row.appendChild(indexCell);
+            row.appendChild(statusCell);
+            row.appendChild(resetCell);
+
+            tableBody.appendChild(row);
+        }
+
+        // Function to reset the background color of a row
+        function resetRow(personIndex) {
+            const row = document.getElementById(`person-${personIndex}`);
+            row.classList.remove('lying-down');
+            document.getElementById(`status-${personIndex}`).textContent = 'Not lying down';
+            if (statusTracker[personIndex]) {
+                statusTracker[personIndex].timeLying = 0;
+                statusTracker[personIndex].isLying = false;
+                statusTracker[personIndex].locked = false;  // Unlock the row so it can be updated again
+            }
+        }
 
         // Get access to the webcam
         navigator.mediaDevices.getUserMedia({ video: true })
             .then((stream) => {
-                video.srcObject = stream;
+                const videoStream = document.createElement('video');
+                videoStream.srcObject = stream;
+                videoStream.play();
+
+                // Capture and send frames every 100ms
+                setInterval(() => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = videoStream.videoWidth;
+                    canvas.height = videoStream.videoHeight;
+                    canvas.getContext('2d').drawImage(videoStream, 0, 0);
+                    const imageData = canvas.toDataURL('image/jpeg');
+                    socket.emit('frame', imageData);
+                }, 100);
             })
             .catch((err) => {
                 console.error("Error accessing the webcam", err);
             });
 
-        // Function to capture and send frames to the server
-        function captureAndSendFrame() {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            const imageData = canvas.toDataURL('image/jpeg');
-            socket.emit('frame', imageData);
-        }
-
-        // Capture and send frames every 100ms
-        setInterval(captureAndSendFrame, 100);
-
-        // Listen for pose detection results from the server
+        // Listen for pose detection results and image with skeleton
         socket.on('pose_result', (data) => {
-            status.textContent = data.is_lying_down ? "Status: Lying down" : "Status: Not lying down";
+            video.src = data.image;
+
+            // Assume person index is 1 for now, you can modify this to handle multiple people
+            const personIndex = 1;
+
+            // If the person is not yet tracked, create a new table row
+            if (!statusTracker[personIndex]) {
+                statusTracker[personIndex] = { isLying: false, timeLying: 0, locked: false };
+                createTableRow(personIndex);
+            }
+
+            // Check if the person is lying down, but do not update if locked (already marked as lying)
+            if (!statusTracker[personIndex].locked) {
+                if (data.is_lying_down) {
+                    const currentTime = Date.now();
+                    if (!statusTracker[personIndex].isLying) {
+                        statusTracker[personIndex].isLying = true;
+                        statusTracker[personIndex].startTime = currentTime;
+                    }
+
+                    const elapsed = (currentTime - statusTracker[personIndex].startTime) / 1000;
+                    statusTracker[personIndex].timeLying = elapsed;
+
+                    // Update status in table
+                    document.getElementById(`status-${personIndex}`).textContent = 'Lying down';
+
+                    // If lying down for more than 1.5 seconds, turn row red and lock it
+                    if (elapsed > 1.5) {
+                        document.getElementById(`person-${personIndex}`).classList.add('lying-down');
+                        statusTracker[personIndex].locked = true;  // Lock the row so it stays red
+                    }
+                } else {
+                    statusTracker[personIndex].isLying = false;
+                    statusTracker[personIndex].timeLying = 0;
+                    document.getElementById(`status-${personIndex}`).textContent = 'Not lying down';
+                    document.getElementById(`person-${personIndex}`).classList.remove('lying-down');
+                }
+            }
         });
     </script>
 </body>
