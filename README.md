@@ -19,8 +19,8 @@ This project is a Python application that uses OpenCV and MediaPipe to detect hu
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/opencv-skeleton-overlay.git
-   cd opencv-skeleton-overlay
+   git clone https://github.com/kuyajimbo/CVElderlyMonitor.git
+   cd Elderlymonitor
    ```
 
 2. Install the required packages:
